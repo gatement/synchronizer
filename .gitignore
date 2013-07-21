@@ -3,5 +3,7 @@ deps
 *.o
 *.beam
 *.plt
+*.swp
 ebin
-local.config
+local_prod.config
+priv/log

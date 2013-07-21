@@ -75,9 +75,10 @@ sync() ->
 	output_message("To = ~s~n", [LocalFolder]),
 
 	try
-		{ok, ChannelPid, _ConnectionRef} = open_ssh_channel(),
-		sync_folder(ChannelPid, LocalFolder, RemoteFolder, KeepLocalFiles),
-		%ssh:close(ConnectionRef),
+		{ok, ChannelPid, ConnectionRef} = open_ssh_channel(),
+		sync_folder(ChannelPid, ConnectionRef, LocalFolder, RemoteFolder, KeepLocalFiles),
+		ssh_sftp:stop_channel(ChannelPid),
+		ssh:close(ConnectionRef),
 		output_message("========> success~n~n", []),
 		send_success_email(),
 		ok
@@ -90,7 +91,7 @@ sync() ->
 	end.
 
 
-sync_folder(ChannelPid, LocalFolder, RemoteFolder, KeepLocalFiles) ->
+sync_folder(ChannelPid, ConnectionRef, LocalFolder, RemoteFolder, KeepLocalFiles) ->
 	% create local folder if need
 	ok = filelib:ensure_dir(LocalFolder ++ "/"),
 
@@ -98,21 +99,29 @@ sync_folder(ChannelPid, LocalFolder, RemoteFolder, KeepLocalFiles) ->
 
 	% delete local items if not exist
 	if 
-		KeepLocalFiles =:= false -> purge_not_in_list_local_items(LocalFolder, RemoteFileNames);
-		true -> do_nothing
+		KeepLocalFiles =:= false -> 
+			purge_not_in_list_local_items(LocalFolder, RemoteFileNames);
+		true -> 
+			do_nothing
 	end,
 
 	Fun = fun(FileName) -> 
 		if 
-			FileName =:= "." -> ignore;
-			FileName =:= ".." -> ignore;
+			FileName =:= "." -> 
+				ignore;
+			FileName =:= ".." -> 
+				ignore;
 			true ->
 				RemoteFile = RemoteFolder ++ "/" ++ FileName,
-				{ok, ChannelPid2, RemoteFileInfo} = ssh_read_file_info(ChannelPid, RemoteFile, ?SSH_RETRY_TIMES),
-				case RemoteFileInfo#file_info.type of
-					regular -> copy_file_if_modified(ChannelPid2,  LocalFolder ++ "/" ++ FileName, RemoteFile, RemoteFileInfo);
-					directory -> sync_folder(ChannelPid2, LocalFolder ++ "/" ++ FileName, RemoteFile, KeepLocalFiles);
-					_ -> ignore
+				case ssh_read_file_info(ChannelPid, ConnectionRef, RemoteFile, ?SSH_RETRY_TIMES) of
+					{ok, ChannelPid2, ConnectionRef2, RemoteFileInfo} ->
+						case RemoteFileInfo#file_info.type of
+							regular -> copy_file_if_modified(ChannelPid2,  LocalFolder ++ "/" ++ FileName, RemoteFile, RemoteFileInfo);
+							directory -> sync_folder(ChannelPid2, ConnectionRef2, LocalFolder ++ "/" ++ FileName, RemoteFile, KeepLocalFiles);
+							_ -> ignore
+						end;
+					_ ->
+						ignore
 				end
 		end
 	end,
@@ -208,37 +217,26 @@ send_success_email() ->
 	smtp_client:send_email(SenderEmail, SenderEmailPwd, [ReceiverEmail], Subject, Content).
 
 
-output_message(Format, Params) ->
-	output_message(Format, Params, info).
-
-
-output_message(Format, Params, Level) ->
-	{ok, OutputDebug} = application:get_env(output_debug),
-	case Level of
-		debug ->
-			if
-				OutputDebug =:= true -> 
-					error_logger:info_msg(Format, Params),
-					io:format(Format, Params);
-				true -> ignore
-			end;
-		_ ->
-			error_logger:info_msg(Format, Params),
-			io:format(Format, Params)
-	end.
-
-
-ssh_read_file_info(_ChannelPid, _RemoteFile, 0) ->
+ssh_read_file_info(_ChannelPid, _ConnectionRef, RemoteFile, 0) ->
+	output_message("ssh_read_file_info error(retryed ~p times and gave up), filename: ~p~n", [?SSH_RETRY_TIMES, RemoteFile]),
 	ssh_read_file_info_error;
-ssh_read_file_info(ChannelPid, RemoteFile, RetryTimes) ->
+ssh_read_file_info(ChannelPid, ConnectionRef, RemoteFile, RetryTimes) ->
 	case ssh_sftp:read_file_info(ChannelPid, RemoteFile) of
 		{ok, RemoteFileInfo} -> 
-			{ok, ChannelPid, RemoteFileInfo};
-		_ -> 
-			output_message("ssh_read_file_info error(retry ~p times), try reopen ssh~n", [?SSH_RETRY_TIMES - RetryTimes + 1]),
+			{ok, ChannelPid, ConnectionRef, RemoteFileInfo};
+		{error, no_such_file} ->
+			output_message("ssh_read_file_info error, msg: ~p, filename: ~p~n", [no_such_file, RemoteFile]),
+			no_such_file;
+		{error, closed} ->
+			output_message("ssh_read_file_info error(retry ~p times), msg: ~p, filename: ~p~n", [?SSH_RETRY_TIMES - RetryTimes + 1, closed, RemoteFile]),
+			ssh_sftp:stop_channel(ChannelPid),
+			ssh:close(ConnectionRef),
 			timer:sleep(2000),
-			{ok, ChannelPid2, _} = open_ssh_channel(),
-			ssh_read_file_info(ChannelPid2, RemoteFile, RetryTimes - 1)
+			{ok, ChannelPid2, ConnectionRef2} = open_ssh_channel(),
+			ssh_read_file_info(ChannelPid2, ConnectionRef2, RemoteFile, RetryTimes - 1);
+		Msg -> 
+			output_message("ssh_read_file_info error, msg: ~p, filename: ~p~n", [Msg, RemoteFile]),
+			Msg
 	end.
 
 
@@ -250,3 +248,23 @@ open_ssh_channel() ->
 
 	{ok, ChannelPid, ConnectionRef} = ssh_sftp:start_channel(Server, Port, [{user, User}, {password, Pwd}]),
 	{ok, ChannelPid, ConnectionRef}.
+
+
+output_message(Format, Params) ->
+	output_message(Format, Params, info).
+
+
+output_message(Format, Params, Level) ->
+	{ok, OutputDebug} = application:get_env(output_debug),
+	case Level of
+		debug ->
+			if
+				OutputDebug =:= true -> 
+					error_logger:info_msg(Format, Params);
+				true -> 
+					ignore
+			end;
+		_ ->
+			error_logger:info_msg(Format, Params)
+	end.
+
