@@ -21,14 +21,14 @@ send_email(From, FromPwd, Receivers, Subject, Content) ->
 				SmtpPort = 465,
 				send_email(From, FromPwd, Receivers, Subject, Content, SmtpUrl, SmtpPort);
 		Mail ->
-			error_logger:info_msg("================ sending email error ================~n"),
-			error_logger:info_msg("Mail ~p is not supported~n", [Mail]),
-			error_logger:info_msg("(~s)~n~n", [tools:datetime_string('yyyy-MM-dd hh:mm:ss')])
+			io:format("================ sending email error ================~n"),
+			io:format("Mail ~p is not supported~n", [Mail]),
+			io:format("(~s)~n~n", [tools:datetime_string('yyyy-MM-dd hh:mm:ss')])
 	end.
 
 
 send_email(From, FromPwd, Receivers, Subject, Content, SmtpUrl, SmtpPort) ->
-	error_logger:info_msg("================ start sending email ================~n"),
+	io:format("================ start sending email ================~n"),
 
 	application:start(crypto),
 	application:start(public_key),
@@ -57,15 +57,15 @@ send_email(From, FromPwd, Receivers, Subject, Content, SmtpUrl, SmtpPort) ->
 		    send(Socket, "QUIT"),
 		    ssl:close(Socket),
 
-			error_logger:info_msg("================ end sending email ================~n"),
-			error_logger:info_msg("(~s)~n~n", [tools:datetime_string('yyyy-MM-dd hh:mm:ss')]),
+			io:format("================ end sending email ================~n"),
+			io:format("(~s)~n~n", [tools:datetime_string('yyyy-MM-dd hh:mm:ss')]),
 
 			ok;
 
 		{error, Reason} -> 
-			error_logger:info_msg("Mail error: ~p~n", [Reason]),
-			error_logger:info_msg("================ end sending email ================~n"),
-			error_logger:info_msg("(~s)~n~n", [tools:datetime_string('yyyy-MM-dd hh:mm:ss')]),
+			io:format("Mail error: ~p~n", [Reason]),
+			io:format("================ end sending email ================~n"),
+			io:format("(~s)~n~n", [tools:datetime_string('yyyy-MM-dd hh:mm:ss')]),
 
 			erlang:throw(io_lib:format("Mail error: ~p", [Reason])),
 
@@ -83,12 +83,12 @@ get_time() ->
 
 
 send_no_receive(Socket, Data) ->
-	error_logger:info_msg("Mail C: ~p~n", [Data]),
+	io:format("Mail C: ~p~n", [Data]),
     ssl:send(Socket, Data ++ "\r\n").
 
 
 send(Socket, Data) ->
-	error_logger:info_msg("Mail C: ~p~n", [Data]),
+	io:format("Mail C: ~p~n", [Data]),
     ssl:send(Socket, Data ++ "\r\n"),
     recv(Socket).
 
@@ -96,10 +96,10 @@ send(Socket, Data) ->
 recv(Socket) ->
     case ssl:recv(Socket, 0, 60000) of
 		{ok, _Return} -> 
-			error_logger:info_msg("Mail S: ~p~n", [_Return]),
+			io:format("Mail S: ~p~n", [_Return]),
 			ok;
 		{error, _Reason} -> 
-			error_logger:info_msg("Mail error: ~p~n", [_Reason]),
+			io:format("Mail error: ~p~n", [_Reason]),
 			error
     end.
 

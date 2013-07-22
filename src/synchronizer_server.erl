@@ -30,7 +30,8 @@ init([]) ->
 
     State = #state{
     	run_interval = RunInterval * 1000, 
-    	error_interval = ErrorInterval * 1000},
+    	error_interval = ErrorInterval * 1000
+	},
 
     {ok, State, WarmingTime * 1000}.
 
@@ -70,16 +71,24 @@ sync() ->
 	{ok, KeepLocalFiles} = application:get_env(keep_local_files),
 	{ok, Server} = application:get_env(ssh_server),
 
+	erlang:put(error, false),
+
 	output_message("======== start synchronizing ========~n", []),
 	output_message("From = ~s:~s~n", [Server, RemoteFolder]),
 	output_message("To = ~s~n", [LocalFolder]),
 
-	try
+	Result = try
 		{ok, ChannelPid, ConnectionRef} = open_ssh_channel(),
-		sync_folder(ChannelPid, ConnectionRef, LocalFolder, RemoteFolder, KeepLocalFiles),
-		ssh_sftp:stop_channel(ChannelPid),
-		ssh:close(ConnectionRef),
-		output_message("========> success~n~n", []),
+		erlang:put(ssh_channel, {ChannelPid, ConnectionRef}),
+
+		sync_folder(LocalFolder, RemoteFolder, KeepLocalFiles),
+
+		case erlang:get(error) of
+			false ->
+				output_message("========> success~n~n", []);
+			true->
+				output_message("========> success(partial)~n~n", [])
+		end,
 		send_success_email(),
 		ok
 	catch
@@ -88,10 +97,18 @@ sync() ->
 			output_message("error ==>~p~n", [Reason]),
 			send_error_email(Reason),
 			error
-	end.
+	end,
+
+	{ChannelPid2, ConnectionRef2} = erlang:get(ssh_channel),
+	ssh_sftp:stop_channel(ChannelPid2),
+	ssh:close(ConnectionRef2),
+
+	Result.
 
 
-sync_folder(ChannelPid, ConnectionRef, LocalFolder, RemoteFolder, KeepLocalFiles) ->
+sync_folder(LocalFolder, RemoteFolder, KeepLocalFiles) ->
+	{ChannelPid, _} = erlang:get(ssh_channel),
+
 	% create local folder if need
 	ok = filelib:ensure_dir(LocalFolder ++ "/"),
 
@@ -113,15 +130,15 @@ sync_folder(ChannelPid, ConnectionRef, LocalFolder, RemoteFolder, KeepLocalFiles
 				ignore;
 			true ->
 				RemoteFile = RemoteFolder ++ "/" ++ FileName,
-				case ssh_read_file_info(ChannelPid, ConnectionRef, RemoteFile, ?SSH_RETRY_TIMES) of
-					{ok, ChannelPid2, ConnectionRef2, RemoteFileInfo} ->
+				case ssh_read_file_info(RemoteFile, ?SSH_RETRY_TIMES) of
+					{ok, RemoteFileInfo} ->
 						case RemoteFileInfo#file_info.type of
-							regular -> copy_file_if_modified(ChannelPid2,  LocalFolder ++ "/" ++ FileName, RemoteFile, RemoteFileInfo);
-							directory -> sync_folder(ChannelPid2, ConnectionRef2, LocalFolder ++ "/" ++ FileName, RemoteFile, KeepLocalFiles);
+							regular -> copy_file_if_modified(LocalFolder ++ "/" ++ FileName, RemoteFile, RemoteFileInfo);
+							directory -> sync_folder(LocalFolder ++ "/" ++ FileName, RemoteFile, KeepLocalFiles);
 							_ -> ignore
 						end;
 					unexcepted_value ->
-						error
+						erlang:put(error, true)
 				end
 		end
 	end,
@@ -174,23 +191,25 @@ delete_local_item_recursively(LocalFile) ->
 	end.
 
 
-copy_file_if_modified(ChannelPid, LocalFile, RemoteFile, RemoteFileInfo) ->
+copy_file_if_modified(LocalFile, RemoteFile, RemoteFileInfo) ->
 	case filelib:is_regular(LocalFile) of
 		false ->
 			% no local file
-			copy_file(ChannelPid, LocalFile, RemoteFile);
+			copy_file(LocalFile, RemoteFile);
 
 		true ->
 			LocalLastModified = filelib:last_modified(LocalFile),
 			RemoteLastModified = RemoteFileInfo#file_info.mtime,
 			if
-				RemoteLastModified > LocalLastModified -> copy_file(ChannelPid, LocalFile, RemoteFile);
+				RemoteLastModified > LocalLastModified -> copy_file(LocalFile, RemoteFile);
 				true -> output_message("skipped: ~s~n", [RemoteFile], debug)
 			end
 	end.
 
 
-copy_file(ChannelPid, LocalFile, RemoteFile) ->
+copy_file(LocalFile, RemoteFile) ->
+	{ChannelPid, _} = erlang:get(ssh_channel),
+
 	output_message("copying: ~s ", [RemoteFile]),
 	{ok, FileData} = ssh_sftp:read_file(ChannelPid, RemoteFile),
 	file:write_file(LocalFile, FileData),
@@ -213,24 +232,37 @@ send_success_email() ->
 	{ok, SenderEmailPwd} = application:get_env(sender_email_password),
 	{ok, ReceiverEmail} = application:get_env(receiver_email),
 	Subject = io_lib:format("Sync Success [~s] (~s)", [ClientName, tools:datetime_string('yyyy-MM-dd hh:mm:ss')]),
-	Content = "Sync Success.",
+	Content = case erlang:get(error) of
+		false -> "Sync Success.";
+		true -> "Sync Partial Success."
+	end,
 	smtp_client:send_email(SenderEmail, SenderEmailPwd, [ReceiverEmail], Subject, Content).
 
 
-ssh_read_file_info(_ChannelPid, _ConnectionRef, RemoteFile, 0) ->
+ssh_read_file_info(RemoteFile, 0) ->
 	output_message("ssh_read_file_info error(retryed ~p times and gave up), filename: ~p~n", [?SSH_RETRY_TIMES, RemoteFile]),
 	ssh_read_file_info_error;
-ssh_read_file_info(ChannelPid, ConnectionRef, RemoteFile, RetryTimes) ->
+
+ssh_read_file_info(RemoteFile, RetryTimes) ->
+	{ChannelPid, ConnectionRef} = erlang:get(ssh_channel),
+
 	case ssh_sftp:read_file_info(ChannelPid, RemoteFile) of
 		{ok, RemoteFileInfo} -> 
-			{ok, ChannelPid, ConnectionRef, RemoteFileInfo};
+			{ok, RemoteFileInfo};
+
 		{error, closed} ->
 			output_message("ssh_read_file_info error(retry ~p times), msg: ~p, filename: ~p~n", [?SSH_RETRY_TIMES - RetryTimes + 1, closed, RemoteFile]),
+
 			ssh_sftp:stop_channel(ChannelPid),
 			ssh:close(ConnectionRef),
+
 			timer:sleep(2000),
+
 			{ok, ChannelPid2, ConnectionRef2} = open_ssh_channel(),
-			ssh_read_file_info(ChannelPid2, ConnectionRef2, RemoteFile, RetryTimes - 1);
+			erlang:put(ssh_channel, {ChannelPid2, ConnectionRef2}),
+
+			ssh_read_file_info(RemoteFile, RetryTimes - 1);
+
 		Msg -> 
 			output_message("ssh_read_file_info error, msg: ~p, filename: ~p~n", [Msg, RemoteFile]),
 			Msg
