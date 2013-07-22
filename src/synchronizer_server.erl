@@ -120,8 +120,8 @@ sync_folder(ChannelPid, ConnectionRef, LocalFolder, RemoteFolder, KeepLocalFiles
 							directory -> sync_folder(ChannelPid2, ConnectionRef2, LocalFolder ++ "/" ++ FileName, RemoteFile, KeepLocalFiles);
 							_ -> ignore
 						end;
-					_ ->
-						ignore
+					unexcepted_value ->
+						error
 				end
 		end
 	end,
@@ -224,9 +224,6 @@ ssh_read_file_info(ChannelPid, ConnectionRef, RemoteFile, RetryTimes) ->
 	case ssh_sftp:read_file_info(ChannelPid, RemoteFile) of
 		{ok, RemoteFileInfo} -> 
 			{ok, ChannelPid, ConnectionRef, RemoteFileInfo};
-		{error, no_such_file} ->
-			output_message("ssh_read_file_info error, msg: ~p, filename: ~p~n", [no_such_file, RemoteFile]),
-			no_such_file;
 		{error, closed} ->
 			output_message("ssh_read_file_info error(retry ~p times), msg: ~p, filename: ~p~n", [?SSH_RETRY_TIMES - RetryTimes + 1, closed, RemoteFile]),
 			ssh_sftp:stop_channel(ChannelPid),
