@@ -242,14 +242,14 @@ send_success_email() ->
 
 
 send_error_msg() ->
-	Msg = "sync error",
+	Msg = "Sync error",
 	notification:send(Msg, false).
 
 
 send_success_msg() ->
 	Msg = case erlang:get(error) of
-		false -> "sync success";
-		true -> "sync success(partial)"
+		false -> "Sync success";
+		true -> "Sync success(partial)"
 	end,
 	notification:send(Msg, false).
 
