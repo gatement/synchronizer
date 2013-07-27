@@ -8,7 +8,8 @@
 
 start() ->
     ssh:start(),
-	application:start(synchronizer).
+	application:start(synchronizer),
+	ok.
 
 
 %% ===================================================================

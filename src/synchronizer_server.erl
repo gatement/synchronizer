@@ -89,13 +89,15 @@ sync() ->
 			true->
 				output_message("========> success(partial)~n~n", [])
 		end,
-		send_success_email(),
+		%send_success_email(),
+		send_success_msg(),
 		ok
 	catch
 		_:Reason ->
 			output_message("~n========> error~n", []),
 			output_message("error ==>~p~n", [Reason]),
-			send_error_email(Reason),
+			%send_error_email(Reason),
+			send_error_msg(),
 			error
 	end,
 
@@ -237,6 +239,19 @@ send_success_email() ->
 		true -> "Sync Partial Success."
 	end,
 	smtp_client:send_email(SenderEmail, SenderEmailPwd, [ReceiverEmail], Subject, Content).
+
+
+send_error_msg() ->
+	Msg = "sync error",
+	notification:send(Msg, false).
+
+
+send_success_msg() ->
+	Msg = case erlang:get(error) of
+		false -> "sync success";
+		true -> "sync success(partial)"
+	end,
+	notification:send(Msg, false).
 
 
 ssh_read_file_info(RemoteFile, 0) ->

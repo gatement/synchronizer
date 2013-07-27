@@ -1,30 +1,37 @@
 {application, synchronizer,
- [{description, "data synchronizer by ssh."},
-  {vsn, "0.1.0"},
-  {registered, [synchronizer_sup]},
-  {applications, [kernel, stdlib]},
-  {env, [
-      {client_name, "johnson-pc"},
+	[{description, "data synchronizer by ssh."},
+	{vsn, "0.1.0"},
+	{registered, [synchronizer_sup]},
+	{applications, [kernel, stdlib]},
+	{env, [
+		{client_name, "johnson-pc"},
 
-      {ssh_server, "192.168.1.10"},
-      {ssh_port, 22},
-      {ssh_user, "root"},
-      {ssh_password, "123456"},
+		{ssh_server, "192.168.1.10"},
+		{ssh_port, 22},
+		{ssh_user, "root"},
+		{ssh_password, "123456"},
 
-      {remote_folder, "/data/sync"},
-      {local_folder, "D:/_backup/sync"},
+		{remote_folder, "/data/sync"},
+		{local_folder, "D:/_backup/sync"},
 
-      {keep_local_files, false},
+		{keep_local_files, false},
 
-      {sender_email, "aaa@gmail.com"},
-      {sender_email_password, "123456"},
-      {receiver_email, "aaa@139.com"},
+		{sender_email, "aaa@gmail.com"},
+		{sender_email_password, "123456"},
+		{receiver_email, "aaa@139.com"},
 
-      {wait_before_first_run, 60}, % in seconds
-      {wait_after_error_occur, 1800}, % in seconds
-      {run_interval, 28800}, % in seconds
+		{wait_before_first_run, 60}, % in seconds
+		{wait_after_error_occur, 1800}, % in seconds
+		{run_interval, 28800}, % in seconds
 
-      {output_debug, true}
-  ]},
-  {mod, {synchronizer_app, []}}
- ]}.
+		{mqtt_user, "john"},
+		{mqtt_user_pwd, "123456"},
+
+		{url_user_session, "https://tools.johnson.uicp.net:88/user/session"},
+		{url_send_msg, "https://tools.johnson.uicp.net:88/mqtt_svc/send_msg"},
+		{url_send_persistence_msg, "https://tools.johnson.uicp.net:88/mqtt_svc/send_persistence_msg"},
+
+		{output_debug, true}
+		]},
+	{mod, {synchronizer_app, []}}
+	]}.
