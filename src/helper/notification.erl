@@ -21,13 +21,16 @@ send(Msg, Persistence) ->
 				false -> application:get_env(url_send_msg)
 			end,
 
-			Msg2 = edoc_lib:escape_uri(Msg),
-			Body = lists:concat(["msg=", Msg2]),
+			%% append time to the msg
+			Msg2 = lists:flatten(io_lib:format("~s [~s]", [Msg, tools:datetime_string('hh:mm')])),
+
+			Msg3 = edoc_lib:escape_uri(Msg2),
+			Body = lists:concat(["msg=", Msg3]),
 			Cookie = io_lib:format("usr_sid=~s", [SessionId]),
 			Request = {Url, [{"Cookie", Cookie}], "application/x-www-form-urlencoded", Body},
 
-			Result = httpc:request(post, Request, [], []),
-			%io:format("return content: ~p~n", [Result]),
+			_Result = httpc:request(post, Request, [], []),
+			%io:format("return content: ~p~n", [_Result]),
 			ok
 	end,
 
