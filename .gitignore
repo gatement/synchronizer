@@ -7,3 +7,6 @@ deps
 ebin
 local_prod.config
 priv/log
+run.bat
+local.config
+

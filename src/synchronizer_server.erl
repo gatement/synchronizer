@@ -255,7 +255,7 @@ send_success_msg() ->
 
 
 ssh_read_file_info(RemoteFile, 0) ->
-	output_message("ssh_read_file_info error(retryed ~p times and gave up), filename: ~p~n", [?SSH_RETRY_TIMES, RemoteFile]),
+	output_message("ssh_read_file_info error(retryed ~p times and gave up), filename: ~s~n", [?SSH_RETRY_TIMES, RemoteFile]),
 	ssh_read_file_info_error;
 
 ssh_read_file_info(RemoteFile, RetryTimes) ->
@@ -266,7 +266,7 @@ ssh_read_file_info(RemoteFile, RetryTimes) ->
 			{ok, RemoteFileInfo};
 
 		{error, closed} ->
-			output_message("ssh_read_file_info error(retry ~p times), msg: ~p, filename: ~p~n", [?SSH_RETRY_TIMES - RetryTimes + 1, closed, RemoteFile]),
+			output_message("ssh_read_file_info error(retry ~p times), msg: ~p, filename: ~s~n", [?SSH_RETRY_TIMES - RetryTimes + 1, closed, RemoteFile]),
 
 			ssh_sftp:stop_channel(ChannelPid),
 			ssh:close(ConnectionRef),
@@ -279,7 +279,7 @@ ssh_read_file_info(RemoteFile, RetryTimes) ->
 			ssh_read_file_info(RemoteFile, RetryTimes - 1);
 
 		Msg -> 
-			output_message("ssh_read_file_info error, msg: ~p, filename: ~p~n", [Msg, RemoteFile]),
+			output_message("ssh_read_file_info error, msg: ~p, filename: ~s~n", [Msg, RemoteFile]),
 			Msg
 	end.
 
