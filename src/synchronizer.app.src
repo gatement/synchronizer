@@ -24,9 +24,6 @@
 		{wait_after_error_occur, 1800}, % in seconds
 		{run_interval, 28800}, % in seconds
 
-		{mqtt_user, "john"},
-		{mqtt_user_pwd, "123456"},
-
 		{url_user_session, "https://tools.johnson.uicp.net:88/user/session"},
 		{url_send_msg, "https://tools.johnson.uicp.net:88/mqtt_svc/send_msg"},
 		{url_send_persistence_msg, "https://tools.johnson.uicp.net:88/mqtt_svc/send_persistence_msg"},
