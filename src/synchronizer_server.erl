@@ -46,7 +46,14 @@ handle_cast(_Msg, State) ->
 
 handle_info(timeout, #state{ run_interval = RunInterval, error_interval = ErrorInterval} = State) ->
 	case sync() of
-		ok -> {noreply, State, RunInterval};
+		ok -> 
+            {ok, ExitOnSuccess} = application:get_env(exit_on_success),
+            case ExitOnSuccess of
+                true ->
+                    {stop, normal, State};
+                _ ->
+                    {noreply, State, RunInterval}
+            end;
 		error -> {noreply, State, ErrorInterval}
 	end;
 handle_info(_Msg, State) ->
@@ -89,14 +96,14 @@ sync() ->
 			true->
 				output_message("========> success(partial)~n~n", [])
 		end,
-		%send_success_email(),
+		send_success_email(),
 		send_success_msg(),
 		ok
 	catch
 		_:Reason ->
 			output_message("~n========> error~n", []),
 			output_message("error ==>~p~n", [Reason]),
-			%send_error_email(Reason),
+			send_error_email(Reason),
 			send_error_msg(),
 			error
 	end,

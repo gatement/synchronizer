@@ -4,6 +4,8 @@ deps
 *.beam
 *.plt
 *.swp
+*.lnk
+erl_crash.dump
 ebin
 local_prod.config
 priv/log

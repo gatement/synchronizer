@@ -27,6 +27,7 @@
   {wait_after_error_occur, 1800}, % in seconds, =30 min
   {run_interval, 28800}, % in seconds, =8hr
 
+  {exit_on_success, false},
   {output_debug, true}
 ]}
 ].

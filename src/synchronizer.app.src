@@ -28,6 +28,7 @@
 		{url_send_msg, "https://tools.johnson.uicp.net:88/mqtt_svc/send_msg"},
 		{url_send_persistence_msg, "https://tools.johnson.uicp.net:88/mqtt_svc/send_persistence_msg"},
 
+        {exit_on_success, false},
 		{output_debug, true}
 		]},
 	{mod, {synchronizer_app, []}}
