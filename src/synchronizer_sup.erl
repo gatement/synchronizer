@@ -16,7 +16,7 @@ start_link() ->
 
 init([]) ->
     Server = {synchronizer_server, {synchronizer_server, start_link, []},
-              permanent, 10000, worker, [synchronizer_server]},
+              transient, 10000, worker, [synchronizer_server]},
 
     {ok, {{one_for_one, 30, 10}, [Server]}}.
 

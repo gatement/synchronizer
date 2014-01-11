@@ -54,7 +54,8 @@ handle_info(timeout, #state{ run_interval = RunInterval, error_interval = ErrorI
                 _ ->
                     {noreply, State, RunInterval}
             end;
-		error -> {noreply, State, ErrorInterval}
+		error -> 
+            {noreply, State, ErrorInterval}
 	end;
 handle_info(_Msg, State) ->
     {noreply, State}.
@@ -97,14 +98,12 @@ sync() ->
 				output_message("========> success(partial)~n~n", [])
 		end,
 		send_success_email(),
-		send_success_msg(),
 		ok
 	catch
 		_:Reason ->
 			output_message("~n========> error~n", []),
 			output_message("error ==>~p~n", [Reason]),
 			send_error_email(Reason),
-			send_error_msg(),
 			error
 	end,
 
@@ -246,19 +245,6 @@ send_success_email() ->
 		true -> "Sync Partial Success."
 	end,
 	smtp_client:send_email(SenderEmail, SenderEmailPwd, [ReceiverEmail], Subject, Content).
-
-
-send_error_msg() ->
-	Msg = "Sync error",
-	notification:send(Msg, false).
-
-
-send_success_msg() ->
-	Msg = case erlang:get(error) of
-		false -> "Sync success";
-		true -> "Sync success(partial)"
-	end,
-	notification:send(Msg, false).
 
 
 ssh_read_file_info(RemoteFile, 0) ->
